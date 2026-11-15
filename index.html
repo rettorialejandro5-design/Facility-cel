@@ -33,7 +33,7 @@
   }
   // --- escritura diferida con reintento ---
   var pending={},timer=null,badge;
-  function ui(t,bad){if(!badge){badge=document.createElement("div");badge.style.cssText="position:fixed;right:10px;bottom:10px;z-index:99999;font:12px Arial;padding:5px 9px;border-radius:12px;color:#fff;opacity:.9";
+  function ui(t,bad){if(!badge){badge=document.createElement("div");badge.style.cssText="position:fixed;left:10px;bottom:10px;z-index:100001;font:12px Arial;padding:5px 9px;border-radius:12px;color:#fff;opacity:.9";
     (document.body||document.documentElement).appendChild(badge);document.addEventListener("DOMContentLoaded",function(){document.body.appendChild(badge);});}
     badge.textContent=t;badge.style.background=bad?"#dc5b63":"#1aa47a";}
   function flush(){
