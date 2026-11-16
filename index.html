@@ -268,6 +268,12 @@
 .corrective-tooltip{position:fixed;z-index:9999;display:none;max-width:300px;background:#fff;border:1px solid #d9e2ea;border-radius:10px;box-shadow:0 8px 28px #142b3b33;padding:10px;color:#243746;pointer-events:none;font-size:12px}
 .corrective-tooltip img{display:block;max-width:260px;max-height:160px;object-fit:contain;border-radius:7px;margin:0 0 8px}
 .corrective-tooltip{line-height:1.4;min-width:230px;max-width:310px;z-index:10050}
+#correctivePinLayer .pin.corrective.month-out{display:none!important}
+#correctivePinLayer .pin.pin-highlight{z-index:40!important;animation:celPinPulse 1s ease-in-out 6;outline:3px solid #ff9800;outline-offset:3px}
+@keyframes celPinPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.6)}}
+.map-placement-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 10px;padding:9px 12px;background:#fff8e6;border:1px solid #f0c36d;border-radius:10px;font-size:13px;color:#5c4400;scroll-margin-top:70px}
+.map-placement-bar[hidden]{display:none}
+.map-placement-bar span{flex:1 1 220px;min-width:0}
 .mapwrap .pin[data-specialty]:not(.corrective){transition:transform .14s ease,box-shadow .14s ease;z-index:12}
 .mapwrap .pin[data-specialty]:not(.corrective):hover{transform:scale(1.22);box-shadow:0 0 0 5px #1976D233,0 4px 12px #16394b55;z-index:20}
 .mapwrap .pin[data-specialty]:focus-visible{outline:3px solid #1976D2;outline-offset:3px}
@@ -736,7 +742,26 @@ function fileLabel(input,target){input.addEventListener('change',()=>{document.g
 let correctiveCounter=0,futureCounter=0;
 const correctiveStoreKey='celCorrectivePinsV1';
 let restoringCorrectivePins=false;
-function saveCorrectivePins(){if(restoringCorrectivePins)return;try{const items=[...layer.querySelectorAll('.pin.corrective')].map(pin=>({id:pin.dataset.id,groupId:pin.dataset.groupId||pin.dataset.id,locationNumber:Number(pin.dataset.locationNumber||1),locationCount:Number(pin.dataset.locationCount||1),type:pin.classList.contains('future')?'future':'done',title:pin.dataset.title||pin.title||'',code:pin.dataset.code||'',meta:pin.dataset.meta||'',photo:pin.dataset.photo||'',description:pin.dataset.description||'',x:pin.dataset.x||'',y:pin.dataset.y||'',placed:pin.dataset.placed==='true',locked:pin.dataset.locked==='true'}));localStorage.setItem(correctiveStoreKey,JSON.stringify(items));}catch(err){console.warn('No se pudieron guardar los correctivos localmente. Si adjuntaste fotografías, descargá un respaldo.',err);}}
+// Fecha de los correctivos realizados (AAAA-MM-DD) y filtro por mes del plano.
+const CORR_MONTHS_ES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+function celCanEdit(){return !(window.CEL&&window.CEL.ready&&window.CEL.canEdit===false)}
+function celReadOnlyWarn(){if(window.CEL&&typeof window.CEL.ui==='function')window.CEL.ui('Solo lectura: tu rol no permite cargar ni modificar datos',true)}
+function isoFromDate(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function todayISO(){return isoFromDate(new Date())}
+function validISO(v){return /^\d{4}-\d{2}-\d{2}$/.test(String(v||''))}
+// Pines viejos sin fecha: el groupId lleva el momento de creación ('done-task-<ms>-xxxx').
+function dateFromCorrectiveId(id){const m=String(id||'').match(/^done(?:-task)?-(\d{12,14})-/);if(!m)return '';const d=new Date(Number(m[1]));return isNaN(d)?'':isoFromDate(d)}
+function correctiveMonthLabel(iso){if(!validISO(iso))return '';const [y,m]=iso.split('-').map(Number);return CORR_MONTHS_ES[m-1]?CORR_MONTHS_ES[m-1]+' '+y:''}
+function correctiveDateText(iso){if(!validISO(iso))return '';const [y,m,d]=iso.split('-');return d+'/'+m+'/'+y}
+function mapMonthLabel(){return (document.getElementById('month')?.value||'').replace(' · prueba','')}
+function applyCorrectiveMonthFilter(){
+ const label=mapMonthLabel();
+ document.querySelectorAll('#correctivePinLayer .pin.corrective:not(.future)').forEach(pin=>{
+  const out=!!label&&correctiveMonthLabel(pin.dataset.date)!==label&&!(pendingPlacement&&pendingPlacement.pin===pin);
+  pin.classList.toggle('month-out',out);
+ });
+}
+function saveCorrectivePins(){if(restoringCorrectivePins)return;try{const items=[...layer.querySelectorAll('.pin.corrective')].map(pin=>({id:pin.dataset.id,groupId:pin.dataset.groupId||pin.dataset.id,locationNumber:Number(pin.dataset.locationNumber||1),locationCount:Number(pin.dataset.locationCount||1),type:pin.classList.contains('future')?'future':'done',date:pin.dataset.date||'',title:pin.dataset.title||pin.title||'',code:pin.dataset.code||'',meta:pin.dataset.meta||'',photo:pin.dataset.photo||'',description:pin.dataset.description||'',x:pin.dataset.x||'',y:pin.dataset.y||'',placed:pin.dataset.placed==='true',locked:pin.dataset.locked==='true'}));localStorage.setItem(correctiveStoreKey,JSON.stringify(items));}catch(err){console.warn('No se pudieron guardar los correctivos localmente. Si adjuntaste fotografías, descargá un respaldo.',err);}}
 const layer=document.getElementById('correctivePinLayer');
 const mapWrap=document.querySelector('.mapwrap');
 const placementHint=document.getElementById('mapPlacementHint');
@@ -787,26 +812,104 @@ mapWrap.addEventListener('mouseout',e=>{
 });
 
 let pendingPlacement=null;
+let placementSession=null; // {pin, prev}: modo ubicación abierto desde el plano, hasta Confirmar o Cancelar
 let currentFuturePhotoData='';
+const placementBar=document.createElement('div');placementBar.id='mapPlacementBar';placementBar.className='map-placement-bar';placementBar.hidden=true;
+placementBar.innerHTML='<span id="mapPlacementText"></span><button type="button" class="btn primary" id="mapPlacementConfirm">Confirmar</button><button type="button" class="btn" id="mapPlacementCancel">Cancelar</button>';
+mapWrap.before(placementBar);
+function correctivePinLabel(pin){return (pin.dataset.title||'Correctivo')+' · Ubicación '+(pin.dataset.locationNumber||1)+'/'+(pin.dataset.locationCount||1)}
+function updatePlacementBar(){
+ if(!placementSession){placementBar.hidden=true;return}
+ const pin=placementSession.pin,placed=pin.dataset.placed==='true';
+ placementBar.hidden=false;
+ document.getElementById('mapPlacementText').textContent=placed?'Ubicación seleccionada: '+correctivePinLabel(pin)+'. Confirmá o hacé clic en otro punto.':'Hacé clic en el plano para ubicar: '+correctivePinLabel(pin);
+ document.getElementById('mapPlacementConfirm').disabled=!placed;
+}
+function setRowPlacementStatus(pin){
+ const row=document.getElementById('row-'+pin.dataset.id);if(!row)return;
+ const placed=pin.dataset.placed==='true',status=row.querySelector('.placement-status'),confirm=row.querySelector('.confirm-placement');
+ if(status){status.textContent=placed?'Ubicación seleccionada':'Pendiente de ubicación';status.className='pill '+(placed?'blue':'amber')+' placement-status'}
+ if(confirm){confirm.disabled=!placed;if(placed)confirm.textContent='Confirmar ubicación'}
+}
+function endPlacementMode(){
+ if(pendingPlacement)pendingPlacement.pin.classList.remove('awaiting-place');
+ pendingPlacement=null;placementSession=null;mapWrap.classList.remove('placing');placementHint.style.display='none';
+ updatePlacementBar();applyCorrectiveMonthFilter();
+}
+function cancelPlacementSession(){
+ const s=placementSession;if(!s){endPlacementMode();return}
+ const pin=s.pin,p=s.prev;
+ pin.dataset.x=p.x;pin.dataset.y=p.y;pin.dataset.placed=p.placed;pin.style.left=p.left;pin.style.top=p.top;pin.style.display=p.display;
+ setRowPlacementStatus(pin);endPlacementMode();saveCorrectivePins();
+}
 function activatePlacement(pin){
+  if(!celCanEdit()){celReadOnlyWarn();return}
+  if(pin.dataset.locked==='true')return;
+  if(placementSession&&placementSession.pin!==pin)cancelPlacementSession();
   if(pendingPlacement && pendingPlacement.pin!==pin) pendingPlacement.pin.classList.remove('awaiting-place');
+  if(!placementSession)placementSession={pin,prev:{x:pin.dataset.x||'',y:pin.dataset.y||'',placed:pin.dataset.placed||'false',left:pin.style.left,top:pin.style.top,display:pin.style.display}};
   pendingPlacement={pin};mapWrap.classList.add('placing');placementHint.style.display='block';
   placementHint.textContent='Modo ubicación activo: hacé clic en el punto exacto del plano para colocar el pin.';
   pin.classList.add('awaiting-place');
+  applyCorrectiveMonthFilter();updatePlacementBar();
 }
+// Lleva al plano, en el mes del correctivo (los futuros no dependen del mes).
+function goToMapForCorrective(pin){
+ document.querySelector('.nav button[data-page="plano"]')?.click();
+ const sel=document.getElementById('month');
+ if(sel&&!pin.classList.contains('future')){
+  const label=correctiveMonthLabel(pin.dataset.date);
+  if(label&&mapMonthLabel()!==label){
+   const opt=[...sel.options].find(o=>o.value===label||o.text===label);
+   if(opt){sel.value=opt.value;sel.dispatchEvent(new Event('change',{bubbles:true}))}
+   else alert('El mes del correctivo ('+label+') todavía no está disponible en el plano.');
+  }
+ }
+ applyCorrectiveMonthFilter();
+}
+function startPlacementOnMap(pin){
+ if(!celCanEdit()){celReadOnlyWarn();return}
+ goToMapForCorrective(pin);activatePlacement(pin);
+ placementBar.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function showCorrectiveOnMap(pin){
+ goToMapForCorrective(pin);
+ document.querySelectorAll('#correctivePinLayer .pin-highlight').forEach(p=>p.classList.remove('pin-highlight'));
+ void pin.offsetWidth;pin.classList.add('pin-highlight');
+ setTimeout(()=>pin.classList.remove('pin-highlight'),6000);
+ pin.scrollIntoView({behavior:'smooth',block:'center',inline:'center'});
+}
+function addViewOnMapButton(row,pin){
+ if(!row||row.querySelector('.view-on-map'))return;
+ const b=document.createElement('button');b.type='button';b.className='btn view-on-map';b.textContent='Ver en plano';b.onclick=()=>showCorrectiveOnMap(pin);
+ const before=row.querySelector('.delete-corrective-pin');if(before)row.insertBefore(b,before);else row.appendChild(b);
+}
+function confirmCorrectivePlacement(pin){
+ if(!celCanEdit()){celReadOnlyWarn();return}
+ if(pin.dataset.placed!=='true'){alert('Primero elegí la ubicación haciendo clic en el plano.');return}
+ pin.dataset.locked='true';pin.classList.add('locked');pin.style.display='';
+ const row=document.getElementById('row-'+pin.dataset.id);
+ if(row){const status=row.querySelector('.placement-status');if(status){status.textContent='Ubicación confirmada';status.className='pill placement-status'}row.querySelector('.choose-placement')?.remove();row.querySelector('.confirm-placement')?.remove();addViewOnMapButton(row,pin)}
+ if(placementSession&&placementSession.pin===pin)endPlacementMode();
+ saveCorrectivePins();
+}
+document.getElementById('mapPlacementConfirm').onclick=()=>{if(placementSession)confirmCorrectivePlacement(placementSession.pin)};
+document.getElementById('mapPlacementCancel').onclick=()=>cancelPlacementSession();
 mapWrap.addEventListener('click',e=>{
   if(!pendingPlacement)return;
   if(e.target.closest('.pin'))return;
+  if(!celCanEdit()){endPlacementMode();celReadOnlyWarn();return}
   const rect=mapWrap.getBoundingClientRect();
   const x=Math.max(1,Math.min(99,(e.clientX-rect.left)/rect.width*100));
   const y=Math.max(1,Math.min(99,(e.clientY-rect.top)/rect.height*100));
   const pin=pendingPlacement.pin;pin.style.left=x+'%';pin.style.top=y+'%';pin.style.display='';pin.dataset.x=x.toFixed(3);pin.dataset.y=y.toFixed(3);pin.dataset.placed='true';pin.classList.remove('awaiting-place');
-  const row=document.getElementById('row-'+pin.dataset.id);
-  if(row){const status=row.querySelector('.placement-status');if(status){status.textContent='Ubicación seleccionada';status.className='pill blue placement-status'}const confirm=row.querySelector('.confirm-placement');if(confirm){confirm.disabled=false;confirm.textContent='Confirmar ubicación'}}
+  setRowPlacementStatus(pin);
+  if(placementSession&&placementSession.pin===pin){updatePlacementBar();saveCorrectivePins();return}
   pendingPlacement=null;mapWrap.classList.remove('placing');placementHint.style.display='none';saveCorrectivePins();
 });
 function removeCorrectivePin(pin){
- if(pendingPlacement?.pin===pin){pendingPlacement=null;mapWrap.classList.remove('placing');placementHint.style.display='none';}
+ if(!celCanEdit()){celReadOnlyWarn();return}
+ if(pendingPlacement?.pin===pin||placementSession?.pin===pin)endPlacementMode();
  const row=document.getElementById('row-'+pin.dataset.id);pin.remove();row?.remove();
  const groupId=pin.dataset.groupId||pin.dataset.id;
  const remaining=[...layer.querySelectorAll('.pin.corrective')].filter(p=>(p.dataset.groupId||p.dataset.id)===groupId);
@@ -814,8 +917,9 @@ function removeCorrectivePin(pin){
  saveCorrectivePins();
 }
 function removeCorrectiveTask(groupId){
+ if(!celCanEdit()){celReadOnlyWarn();return}
  if(!confirm('¿Eliminar la tarea completa y todos sus pines? Esta acción no se puede deshacer.'))return;
- [...layer.querySelectorAll('.pin.corrective')].filter(p=>(p.dataset.groupId||p.dataset.id)===groupId).forEach(p=>{if(pendingPlacement?.pin===p)pendingPlacement=null;p.remove();document.getElementById('row-'+p.dataset.id)?.remove();});
+ [...layer.querySelectorAll('.pin.corrective')].filter(p=>(p.dataset.groupId||p.dataset.id)===groupId).forEach(p=>{if(pendingPlacement?.pin===p||placementSession?.pin===p)endPlacementMode();p.remove();document.getElementById('row-'+p.dataset.id)?.remove();});
  mapWrap.classList.remove('placing');placementHint.style.display='none';
  const list=document.getElementById('correctiveQueue');const futureList=document.getElementById('futureList');[list,futureList].forEach((box)=>{if(box&&!box.querySelector('.queue-item'))box.innerHTML='<div class="emptyhint">Todavía no hay correctivos cargados.</div>'});
  saveCorrectivePins();
@@ -824,17 +928,18 @@ function queuePin(type,title,code,meta,photoData='',description='',opts={}){
  let id=opts.id||type+'-'+Date.now()+'-'+Math.random().toString(16).slice(2,6);
  const groupId=opts.groupId||id,locationNumber=opts.locationNumber||1,locationCount=opts.locationCount||1;
  let pin=document.createElement('button');pin.className='pin corrective '+(type==='future'?'future':'');pin.textContent=type==='future'?'!':'🔧';pin.title=title+' · Ubicación '+locationNumber+'/'+locationCount;pin.style.left='50%';pin.style.top='50%';pin.style.display='none';pin.dataset.locked='false';pin.dataset.id=id;pin.dataset.groupId=groupId;pin.dataset.locationNumber=String(locationNumber);pin.dataset.locationCount=String(locationCount);pin.dataset.placed='false';pin.dataset.photo=photoData;pin.dataset.description=description;pin.dataset.title=title;pin.dataset.code=code||'';pin.dataset.meta=meta||'';
+  let pinDate='';if(type!=='future'){pinDate=validISO(opts.date)?opts.date:(dateFromCorrectiveId(groupId)||dateFromCorrectiveId(id)||todayISO());pin.dataset.date=pinDate;}
   pin.addEventListener('mouseenter',e=>{if(type!=='future')return;hoverCard.innerHTML='';if(photoData){const im=document.createElement('img');im.src=photoData;im.alt='Estado actual del equipo';hoverCard.appendChild(im)}const b=document.createElement('b');b.textContent=title;hoverCard.appendChild(b);const p=document.createElement('div');p.textContent=description||'Sin descripción adicional';p.style.marginTop='5px';hoverCard.appendChild(p);hoverCard.style.display='block';hoverCard.style.left=Math.min(e.clientX+14,window.innerWidth-320)+'px';hoverCard.style.top=Math.min(e.clientY+14,window.innerHeight-220)+'px'});
   pin.addEventListener('mousemove',e=>{if(hoverCard.style.display==='block'){hoverCard.style.left=Math.min(e.clientX+14,window.innerWidth-320)+'px';hoverCard.style.top=Math.min(e.clientY+14,window.innerHeight-220)+'px'}});pin.addEventListener('mouseleave',()=>hoverCard.style.display='none');pin.onclick=()=>{if(pin.dataset.locked==='true')return;activatePlacement(pin)};layer.appendChild(pin);
   let list=document.getElementById(type==='future'?'futureList':'correctiveQueue');if(list.querySelector('.emptyhint'))list.innerHTML='';
-  let row=document.createElement('div');row.className='queue-item';row.id='row-'+id;
-  const info=document.createElement('div'),heading=document.createElement('b'),metaLine=document.createElement('div'),status=document.createElement('span');info.appendChild(heading);info.appendChild(metaLine);heading.textContent=title+' · Ubicación '+locationNumber+'/'+locationCount;metaLine.className='meta';metaLine.append(document.createTextNode((code||'Sin código')+' · '+(meta||'Ubicación por definir')+' · '));status.className='pill amber placement-status';status.textContent='Pendiente de ubicación';metaLine.appendChild(status);
-  const choose=document.createElement('button'),confirm=document.createElement('button'),deletePin=document.createElement('button'),deleteTask=document.createElement('button');choose.className='btn primary choose-placement';choose.textContent='Ubicar en plano';confirm.className='btn confirm-placement';confirm.textContent='Confirmar';confirm.disabled=true;deletePin.className='btn delete-corrective-pin';deletePin.textContent='Eliminar pin';deletePin.onclick=()=>{if(confirm('¿Eliminar solamente esta ubicación?'))removeCorrectivePin(pin)};deleteTask.className='btn delete-corrective-task';deleteTask.textContent='Eliminar tarea completa';deleteTask.onclick=()=>removeCorrectiveTask(groupId);row.append(info,choose,confirm,deletePin,deleteTask);
-  row.querySelector('.choose-placement').onclick=()=>activatePlacement(pin);
-  row.querySelector('.confirm-placement').onclick=()=>{if(pin.dataset.placed!=='true'){alert('Primero elegí la ubicación haciendo clic en el plano.');return}pin.dataset.locked='true';pin.classList.add('locked');pin.style.display='';const status=row.querySelector('.placement-status');status.textContent='Ubicación confirmada';status.className='pill placement-status';row.querySelector('.choose-placement').remove();row.querySelector('.confirm-placement').remove();saveCorrectivePins()};
-  list.appendChild(row);saveCorrectivePins();return pin;
+  let row=document.createElement('div');row.className='queue-item';row.id='row-'+id;if(pinDate){row.dataset.date=pinDate;row.dataset.month=correctiveMonthLabel(pinDate);}
+  const info=document.createElement('div'),heading=document.createElement('b'),metaLine=document.createElement('div'),status=document.createElement('span');info.appendChild(heading);info.appendChild(metaLine);heading.textContent=title+' · Ubicación '+locationNumber+'/'+locationCount;metaLine.className='meta';metaLine.append(document.createTextNode((pinDate?correctiveDateText(pinDate)+' · ':'')+(code||'Sin código')+' · '+(meta||'Ubicación por definir')+' · '));status.className='pill amber placement-status';status.textContent='Pendiente de ubicación';metaLine.appendChild(status);
+  const choose=document.createElement('button'),confirm=document.createElement('button'),deletePin=document.createElement('button'),deleteTask=document.createElement('button');choose.className='btn primary choose-placement';choose.textContent='Ubicar en plano';confirm.className='btn confirm-placement';confirm.textContent='Confirmar';confirm.disabled=true;deletePin.className='btn delete-corrective-pin';deletePin.textContent='Eliminar pin';deletePin.onclick=()=>{if(!celCanEdit()){celReadOnlyWarn();return}if(window.confirm('¿Eliminar solamente esta ubicación?'))removeCorrectivePin(pin)};deleteTask.className='btn delete-corrective-task';deleteTask.textContent='Eliminar tarea completa';deleteTask.onclick=()=>removeCorrectiveTask(groupId);row.append(info,choose,confirm,deletePin,deleteTask);
+  row.querySelector('.choose-placement').onclick=()=>startPlacementOnMap(pin);
+  row.querySelector('.confirm-placement').onclick=()=>confirmCorrectivePlacement(pin);
+  list.appendChild(row);saveCorrectivePins();applyCorrectiveMonthFilter();return pin;
 }
-document.getElementById('createCorrective').onclick=()=>{let title=document.getElementById('jobDescription').value.trim();if(!title){alert('Completá la descripción del correctivo.');return}const countInput=document.getElementById('jobPinCount');const count=Math.max(1,Math.min(20,Number.parseInt(countInput.value,10)||1));countInput.value=count;correctiveCounter++;const groupId='done-task-'+Date.now()+'-'+Math.random().toString(16).slice(2,6);for(let i=1;i<=count;i++)queuePin('done',title,document.getElementById('jobCode').value,document.getElementById('jobSector').value||'Sector sin definir','','',{groupId,locationNumber:i,locationCount:count});document.getElementById('jobDescription').value='';document.getElementById('jobCode').value='';document.getElementById('jobSector').value='';countInput.value='1'};
+document.getElementById('createCorrective').onclick=()=>{if(!celCanEdit()){celReadOnlyWarn();return}let title=document.getElementById('jobDescription').value.trim();if(!title){alert('Completá la descripción del correctivo.');return}const dateInput=document.getElementById('jobDate');const jobDate=validISO(dateInput.value)?dateInput.value:todayISO();const jobMonth=correctiveMonthLabel(jobDate);const mapSel=document.getElementById('month');if(mapSel&&![...mapSel.options].some(o=>o.value===jobMonth||o.text===jobMonth)){alert('La fecha '+correctiveDateText(jobDate)+' está fuera del calendario disponible ('+mapSel.options[0].text+' a '+mapSel.options[mapSel.options.length-1].text+').');return}const countInput=document.getElementById('jobPinCount');const count=Math.max(1,Math.min(20,Number.parseInt(countInput.value,10)||1));countInput.value=count;correctiveCounter++;const groupId='done-task-'+Date.now()+'-'+Math.random().toString(16).slice(2,6);for(let i=1;i<=count;i++)queuePin('done',title,document.getElementById('jobCode').value,document.getElementById('jobSector').value||'Sector sin definir','','',{groupId,locationNumber:i,locationCount:count,date:jobDate});dateInput.value='';document.getElementById('jobDescription').value='';document.getElementById('jobCode').value='';document.getElementById('jobSector').value='';countInput.value='1'};
 fileLabel(document.getElementById('futurePhoto'),'photoName');
 let futurePhotoProcessing=false;
 async function compressFuturePhoto(file){
@@ -862,7 +967,16 @@ document.getElementById('futurePhoto').addEventListener('change',async e=>{
  finally{futurePhotoProcessing=false;if(button)button.disabled=false;}
 });
 document.getElementById('createFuture').onclick=()=>{if(futurePhotoProcessing){alert('Esperá a que termine la optimización de la fotografía.');return}let title=document.getElementById('futureTitle').value.trim();if(!title){alert('Completá el elemento o asunto observado.');return}futureCounter++;const desc=document.getElementById('futureDescription').value||'Sin observaciones';queuePin('future',title,'Prioridad '+document.getElementById('futurePriority').value,document.getElementById('futureSector').value||'Sector sin definir',currentFuturePhotoData,desc);document.getElementById('futureTitle').value='';document.getElementById('futureDescription').value='';document.getElementById('futurePhoto').value='';document.getElementById('photoName').textContent='Sin fotografía seleccionada';document.getElementById('photoPreview').classList.add('hidden');currentFuturePhotoData=''};
-(function restoreCorrectivePins(){try{const saved=JSON.parse(localStorage.getItem(correctiveStoreKey)||'[]');if(!Array.isArray(saved))return;restoringCorrectivePins=true;saved.forEach(item=>{if(!item||!['done','future'].includes(item.type)||!item.title)return;const pin=queuePin(item.type,item.title,item.code||'',item.meta||'',item.photo||'',item.description||'',{id:item.id,groupId:item.groupId||item.id,locationNumber:item.locationNumber||1,locationCount:item.locationCount||1});const generatedId=pin.dataset.id;const row=document.getElementById('row-'+generatedId);if(row)row.id='row-'+pin.dataset.id;if(item.placed&&Number.isFinite(Number(item.x))&&Number.isFinite(Number(item.y))){pin.style.left=item.x+'%';pin.style.top=item.y+'%';pin.style.display='';pin.dataset.x=item.x;pin.dataset.y=item.y;pin.dataset.placed='true';if(row){const st=row.querySelector('.placement-status');if(st){st.textContent=item.locked?'Ubicación confirmada':'Ubicación seleccionada';st.className='pill placement-status'}const c=row.querySelector('.confirm-placement');if(c)c.disabled=false;}}if(item.locked){pin.dataset.locked='true';pin.classList.add('locked');if(row){row.querySelector('.choose-placement')?.remove();row.querySelector('.confirm-placement')?.remove();const lock=document.createElement('span');lock.className='pill';lock.textContent='🔒 Fijo';row.appendChild(lock);}}});}catch(err){console.warn('No se pudieron recuperar los correctivos locales',err)}finally{restoringCorrectivePins=false;}})();
+(function restoreCorrectivePins(){try{const saved=JSON.parse(localStorage.getItem(correctiveStoreKey)||'[]');if(!Array.isArray(saved))return;restoringCorrectivePins=true;saved.forEach(item=>{if(!item||!['done','future'].includes(item.type)||!item.title)return;const pin=queuePin(item.type,item.title,item.code||'',item.meta||'',item.photo||'',item.description||'',{id:item.id,groupId:item.groupId||item.id,locationNumber:item.locationNumber||1,locationCount:item.locationCount||1,date:item.date||''});const generatedId=pin.dataset.id;const row=document.getElementById('row-'+generatedId);if(row)row.id='row-'+pin.dataset.id;if(item.placed&&Number.isFinite(Number(item.x))&&Number.isFinite(Number(item.y))){pin.style.left=item.x+'%';pin.style.top=item.y+'%';pin.style.display='';pin.dataset.x=item.x;pin.dataset.y=item.y;pin.dataset.placed='true';if(row){const st=row.querySelector('.placement-status');if(st){st.textContent=item.locked?'Ubicación confirmada':'Ubicación seleccionada';st.className='pill placement-status'}const c=row.querySelector('.confirm-placement');if(c)c.disabled=false;}}if(item.locked){pin.dataset.locked='true';pin.classList.add('locked');if(row){row.querySelector('.choose-placement')?.remove();row.querySelector('.confirm-placement')?.remove();const lock=document.createElement('span');lock.className='pill';lock.textContent='🔒 Fijo';row.appendChild(lock);addViewOnMapButton(row,pin);}}});}catch(err){console.warn('No se pudieron recuperar los correctivos locales',err)}finally{restoringCorrectivePins=false;applyCorrectiveMonthFilter();}})();
+// Cambiar el mes del plano o del cronograma refresca los pines correctivos.
+function syncMapMonthToSchedule(){
+ const map=document.getElementById('month'),maint=document.getElementById('maintenanceMonth');
+ if(map&&maint&&map.value!==maint.value&&[...map.options].some(o=>o.value===maint.value)){map.value=maint.value;map.dispatchEvent(new Event('change',{bubbles:true}))}
+ applyCorrectiveMonthFilter();
+}
+['month','maintenanceMonth'].forEach(id=>document.getElementById(id)?.addEventListener('change',()=>setTimeout(applyCorrectiveMonthFilter,0)));
+['prevMonth','nextMonth','annualToggle'].forEach(id=>document.getElementById(id)?.addEventListener('click',()=>setTimeout(syncMapMonthToSchedule,0)));
+document.getElementById('reportMonth')?.addEventListener('change',()=>setTimeout(syncMapMonthToSchedule,0));
 
 
 
@@ -1698,9 +1812,10 @@ batchApprove?.addEventListener('click',async()=>{
  const cron=document.getElementById('sub-cronograma');
  if(cron&&!document.getElementById('scheduleActivityRegister'))cron.appendChild(makeRegister('scheduleActivityRegister','Seguimiento de rutinas y trabajos del período'));
 
- function itemsFromQueue(id){
+ function itemsFromQueue(id,monthLabel){
   const root=document.getElementById(id);if(!root)return [];
-  return [...root.querySelectorAll('.queue-item')].map(row=>{
+  // Correctivos realizados: solo los del mes elegido (según su fecha).
+  return [...root.querySelectorAll('.queue-item')].filter(row=>!monthLabel||row.dataset.month===monthLabel).map(row=>{
    const title=row.querySelector('b')?.textContent?.trim()||'Trabajo sin descripción';
    const meta=row.querySelector('.meta')?.textContent?.trim()||'';
    const status=row.querySelector('.placement-status')?.textContent?.trim()||'';
@@ -1720,14 +1835,14 @@ batchApprove?.addEventListener('click',async()=>{
    routines.forEach((r,i)=>{
     const planned=!!r[2]?.[monthIdx];
     const state=getScheduleState(i,monthIdx,planned);
-    const entry={title:r[0],meta:`${r[1]} · ${months[monthIdx]}${planned?' · Programada':' · Adicional'}`};
+    const entry={title:r[0],meta:`${r[1]} · ${months[monthIdx]}${planned?' · Según plan':' · Adicional'}`};
     if(state==='done')done.push(entry);
     else if(planned)pending.push(entry);
    });
   }
   fill(box,'preventiveDone',done);
   fill(box,'preventivePending',pending);
-  const correctives=itemsFromQueue('correctiveQueue');
+  const correctives=itemsFromQueue('correctiveQueue',months[monthIdx]);
   const future=itemsFromQueue('futureList');
   fill(box,'correctiveDone',correctives);
   fill(box,'correctiveFuture',future);
