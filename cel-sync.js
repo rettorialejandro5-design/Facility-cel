@@ -218,7 +218,9 @@
     return CEL.api("POST","/storage/v1/object/sign/"+bucket+"/"+objPath(path),{expiresIn:seconds||600}).then(function(r){
       if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(j){return CFG.url+"/storage/v1"+(j.signedURL||j.signedUrl);});
   };
-  CEL.deleteFile=function(bucket,path){return CEL.api("DELETE","/storage/v1/object/"+bucket+"/"+objPath(path));};
+  // Borrado por lista: responde 200 con los objetos realmente borrados (vacío si las reglas lo impiden).
+  CEL.deleteFile=function(bucket,path){return CEL.api("DELETE","/storage/v1/object/"+bucket,{prefixes:[path]}).then(function(r){
+    if(!r.ok)return r;return r.json().then(function(j){return {ok:Array.isArray(j)&&j.length>0,status:Array.isArray(j)&&j.length?200:403};});});};
   CEL.setSede=function(id){if(Object.keys(pending).length&&!confirm("Hay cambios guardándose. ¿Cambiar de sede igual?"))return;rawSet.call(LS,"sb_sede",id);location.reload();};
   CEL.changePassword=function(pw){
     return CEL.api("PUT","/auth/v1/user",{password:pw}).then(function(r){
