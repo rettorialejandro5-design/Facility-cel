@@ -4,7 +4,7 @@
 > está en el OneDrive del dueño: `Facility CEL\v2\NOTAS_DESARROLLO.md`.
 > Para retomar con Claude: "Leé NOTAS_DESARROLLO.md y seguimos". Al terminar, actualizar este archivo.
 >
-> Última actualización: 2026-11-15.
+> Última actualización: 2026-11-17.
 
 ## Qué es
 App de gestión de mantenimiento (Facility CEL). Publicada en https://facilitycel.com.ar con Cloudflare Pages,
@@ -28,6 +28,11 @@ por SMTP propio (Resend) desde `no-responder@facilitycel.com.ar`.
 - Claves de la app guardadas por sede: `celExtVerified`, `celExtClosed`, `celVisitDates`, `celPreventiveApproved`,
   `celPreventiveReports`, `celCorrectivePinsV1`, `facilityCEL_schedule_states_v14_three_states`,
   `facilityCEL_schedule_frequencies_v1`, `facilityCEL_custom_routines_v1`, `facilityCEL_custom_pin_positions_v1`.
+- v39 agrega: `celScheduleNotesV1` (observaciones por rutina), `celExtEditsV1` (fechas y observaciones de matafuegos),
+  `celVencEditsV1` (emisión, vencimiento, frecuencia y mes de vigencia), `celVencControlV1` (presentado por mes), `celVencDocsV1` (lista de PDF).
+- **Archivos:** Supabase Storage, espacio privado `documentos` (solo PDF, 20 MB). Ruta `<sede_id>/vencimientos/<n°>/<archivo>`.
+  Reglas en `supabase_v39_documentos.sql`: ver = `puede_ver_sede`, subir y borrar = `puede_editar_sede`. Plan gratis: 1 GB y 50 MB por archivo.
+- **Calendario:** un solo listado `window.CEL_MONTHS` (agosto 2026 a diciembre 2027). Plan 2027 tomado del Excel "Plan de Mantenimiento Preventivo Anual 2026".
 - **Excepción:** los informes PDF preventivos quedan en IndexedDB del navegador (por usuario y sede), no en la nube.
 - Los cambios de otros usuarios se ven al recargar. Si dos personas editan la misma sección a la vez, gana el último que guarda.
 
@@ -45,7 +50,16 @@ por SMTP propio (Resend) desde `no-responder@facilitycel.com.ar`.
 - En la app, solo afirmaciones de seguridad que sean ciertas hoy.
 - Informar con evidencia; no afirmar lo que no se verificó.
 
-## Estado (v38, commit 86d762c)
+## Estado (v39, 2026-11-17)
+- Hecho y publicado:
+  - calendario hasta diciembre 2027 con el plan 2027;
+  - vista de 5 meses o del año completo;
+  - observaciones por rutina y por matafuego;
+  - fechas de matafuegos y de vencimientos editables;
+  - frecuencia con un clic y control mensual Presentado / Pendiente;
+  - PDF de respaldo por documento (subir, ver y borrar probados en producción con un archivo de prueba, ya borrado).
+
+## Estado anterior (v38, commit 86d762c)
 - Hecho: base de datos v2 con RLS y auditoría; correo propio con plantillas en español; usuarios operador y lector asignados;
   pantallas v2 publicadas; GitHub Pages apagado.
 - Probado: el propietario guarda y aparece en Auditoría; cerrar sesión limpia el navegador; enlace vencido;
@@ -55,7 +69,7 @@ por SMTP propio (Resend) desde `no-responder@facilitycel.com.ar`.
 
 ## Próximos pasos
 1. Terminar las pruebas pendientes en producción.
-2. Informes PDF preventivos a la nube (preguntar antes de crear almacenamiento).
+2. Informes PDF preventivos a la nube: ya existe el espacio `documentos`; falta pasar los informes desde IndexedDB.
 3. Evitar que dos usuarios se pisen cambios en la misma sección.
 4. Con OK del dueño: repo privado (confirmar antes que Cloudflare Pages siga desplegando).
 5. Opcionales: SSL "Full (strict)", favicon, decidir sobre `kv_store` (borrar solo con OK).
