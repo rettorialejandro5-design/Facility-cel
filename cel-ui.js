@@ -83,7 +83,7 @@
       '#futurePhoto,#futureTitle,#futurePriority,#futureDescription,#futureSector,#createFuture,#celUploadPdf,#celReadPdf,'+
       '#closeExtMonth,#customRoutineForm input,#customRoutineForm select,#customRoutineForm button,#confirmCustomPin,#removeCustomPin,'+
       '[onclick^="toggleVerify"],[onchange^="saveVisitDate"],.frequency-edit,.schedule-toggle,[data-confirm-pin],[data-generate-pin],[data-open-pin],'+
-      '[data-delete-custom-routine],.delete-corrective-task,.delete-corrective-pin,.confirm-placement,.choose-placement';
+      '[data-delete-custom-routine],.delete-corrective-task,.delete-corrective-pin,.confirm-placement,.choose-placement,.cel-edit';
     var DRAG='.pin,.custom-map-pin';
     function lock(root){
       (root.querySelectorAll?root:document).querySelectorAll(W).forEach(function(el){
@@ -132,7 +132,8 @@
   var KEYS={celExtVerified:"Matafuegos: verificaciones",celExtClosed:"Matafuegos: cierre de mes",celVisitDates:"Vencimientos: próximas visitas",
     celPreventiveApproved:"Preventivos: aprobaciones",celPreventiveReports:"Preventivos: informes",celCorrectivePinsV1:"Correctivos y pines",
     facilityCEL_schedule_states_v14_three_states:"Cronograma: estados",facilityCEL_schedule_frequencies_v1:"Cronograma: frecuencias",
-    facilityCEL_custom_routines_v1:"Rutinas agregadas",facilityCEL_custom_pin_positions_v1:"Plano: ubicación de pines"};
+    facilityCEL_custom_routines_v1:"Rutinas agregadas",facilityCEL_custom_pin_positions_v1:"Plano: ubicación de pines",
+    celScheduleNotesV1:"Cronograma: observaciones",celExtEditsV1:"Matafuegos: fechas y observaciones",celVencEditsV1:"Vencimientos: datos",celVencControlV1:"Vencimientos: controles mensuales"};
   var ACC={INSERT:"Alta",UPDATE:"Modificación",DELETE:"Borrado",USUARIO_INSERT:"Alta de usuario en sede",USUARIO_UPDATE:"Cambio de rol o estado",USUARIO_DELETE:"Baja de usuario en sede"};
   if(CEL.canAudit&&typeof pages!=="undefined"){
     var nav=$(".nav");

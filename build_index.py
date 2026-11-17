@@ -57,7 +57,7 @@ TEXTS = [
      "El botón registra la verificación mensual y la guarda en la nube para la sede activa. Cada cambio queda registrado en la auditoría con usuario, fecha y hora."),
     ("El cronograma refleja los estados registrados en el prototipo local.", "El cronograma refleja los estados registrados para la sede activa."),
     ("FACILITY CEL · PROTOTIPO LOCAL CON OCR EN NAVEGADOR · NO ES AÚN MULTIUSUARIO", "FACILITY CEL · DATOS POR SEDE EN LA NUBE · OCR EN NAVEGADOR"),
-    ("Los cambios de estado se guardan por rutina y por mes en este navegador.", "Los cambios de estado se guardan por rutina y por mes para la sede activa."),
+    # v39: se quitó el aviso de "Ver plan anual" (ahora alterna vista anual / 5 meses).
     ("El cierre queda registrado en este navegador.", "El cierre queda guardado para la sede activa."),
     ("Las rutinas nuevas se guardan en este navegador y se incorporan al cronograma.", "Las rutinas nuevas se guardan para la sede activa y se incorporan al cronograma."),
     ("CEL_DB_NAME='FacilityCEL_DB_v2'", "CEL_DB_NAME='FacilityCEL_DB_v2'+((window.CEL&&CEL.dbSuffix)||'')"),
