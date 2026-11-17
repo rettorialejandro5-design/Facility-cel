@@ -207,6 +207,18 @@
       return refreshAsync().then(function(ok){return ok?api(method,path,body,extra):r;});
     });
   };
+  // ---------- archivos (Supabase Storage, espacio privado "documentos") ----------
+  function objPath(p){return String(p).split("/").map(encodeURIComponent).join("/");}
+  CEL.uploadFile=function(bucket,path,file){
+    function go(){var h={"apikey":CFG.anon,"Content-Type":file.type||"application/pdf","x-upsert":"false"};var t=(getSess()||{}).access_token;if(t)h.Authorization="Bearer "+t;
+      return fetch(CFG.url+"/storage/v1/object/"+bucket+"/"+objPath(path),{method:"POST",headers:h,body:file});}
+    return go().then(function(r){if(r.status!==401&&r.status!==400)return r;return refreshAsync().then(function(ok){return ok?go():r;});});
+  };
+  CEL.fileUrl=function(bucket,path,seconds){
+    return CEL.api("POST","/storage/v1/object/sign/"+bucket+"/"+objPath(path),{expiresIn:seconds||600}).then(function(r){
+      if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(j){return CFG.url+"/storage/v1"+(j.signedURL||j.signedUrl);});
+  };
+  CEL.deleteFile=function(bucket,path){return CEL.api("DELETE","/storage/v1/object/"+bucket+"/"+objPath(path));};
   CEL.setSede=function(id){if(Object.keys(pending).length&&!confirm("Hay cambios guardándose. ¿Cambiar de sede igual?"))return;rawSet.call(LS,"sb_sede",id);location.reload();};
   CEL.changePassword=function(pw){
     return CEL.api("PUT","/auth/v1/user",{password:pw}).then(function(r){

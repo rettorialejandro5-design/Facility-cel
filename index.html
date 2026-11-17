@@ -207,6 +207,18 @@
       return refreshAsync().then(function(ok){return ok?api(method,path,body,extra):r;});
     });
   };
+  // ---------- archivos (Supabase Storage, espacio privado "documentos") ----------
+  function objPath(p){return String(p).split("/").map(encodeURIComponent).join("/");}
+  CEL.uploadFile=function(bucket,path,file){
+    function go(){var h={"apikey":CFG.anon,"Content-Type":file.type||"application/pdf","x-upsert":"false"};var t=(getSess()||{}).access_token;if(t)h.Authorization="Bearer "+t;
+      return fetch(CFG.url+"/storage/v1/object/"+bucket+"/"+objPath(path),{method:"POST",headers:h,body:file});}
+    return go().then(function(r){if(r.status!==401&&r.status!==400)return r;return refreshAsync().then(function(ok){return ok?go():r;});});
+  };
+  CEL.fileUrl=function(bucket,path,seconds){
+    return CEL.api("POST","/storage/v1/object/sign/"+bucket+"/"+objPath(path),{expiresIn:seconds||600}).then(function(r){
+      if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(j){return CFG.url+"/storage/v1"+(j.signedURL||j.signedUrl);});
+  };
+  CEL.deleteFile=function(bucket,path){return CEL.api("DELETE","/storage/v1/object/"+bucket+"/"+objPath(path));};
   CEL.setSede=function(id){if(Object.keys(pending).length&&!confirm("Hay cambios guardándose. ¿Cambiar de sede igual?"))return;rawSet.call(LS,"sb_sede",id);location.reload();};
   CEL.changePassword=function(pw){
     return CEL.api("PUT","/auth/v1/user",{password:pw}).then(function(r){
@@ -1060,8 +1072,52 @@ function vencControlCell(i,x){
  return `<button type="button" class="btn cel-edit venc-ctrl ${done?'is-done':'primary'}" onclick="toggleVencControl(${i})" title="Clic para cambiar">${done?'✓ Presentado':'Pendiente'} · ${label}</button>${startSel}`;
 }
 function vencDateCell(i,x,f){return `<input class="date-edit cel-edit" type="date" value="${window.celDmyToIso(x[f])}" aria-label="${f==='issued'?'Emisión':'Vencimiento documental'} de ${window.celEsc(x.doc)}" onchange="saveVencEdit(${i},'${f}',window.celIsoToDmy(this.value))">`}
-function renderVencimientos(){const body=document.getElementById('vencRows'); if(!body)return; body.innerHTML=vencimientosData.map((_,i)=>{const x=vencItem(i);const alert=expiryAlert(x);return `<tr><td><button type="button" class="venc-doc-link" onclick="openVencDocs(${i})" title="Ver documentación de respaldo"><b>${x.doc}</b></button><div class="meta">${x.site}</div></td><td>${x.provider}</td><td>${vencDateCell(i,x,'issued')}</td><td>${vencDateCell(i,x,'due')}</td><td><button type="button" class="pill blue cel-edit venc-freq" onclick="cycleVencFreq(${i})" title="Clic para cambiar: Mensual → Trimestral → Semestral → Anual → No aplica">${x.frequency==='N/A'?'No aplica':x.frequency}</button></td><td>${vencControlCell(i,x)}</td><td><span class="pill ${pillForState(alert)}">${alert}</span></td></tr>`}).join('')}
-function openVencDocs(i){if(typeof window.celOpenVencDocs==='function')return window.celOpenVencDocs(i,vencItem(i));alert('La documentación de respaldo se habilita cuando esté creado el almacenamiento de archivos en la nube.')}
+function renderVencimientos(){const body=document.getElementById('vencRows'); if(!body)return; body.innerHTML=vencimientosData.map((_,i)=>{const x=vencItem(i);const alert=expiryAlert(x);return `<tr><td><button type="button" class="venc-doc-link" onclick="openVencDocs(${i})" title="Ver documentación de respaldo"><b>${x.doc}</b></button>${(typeof vencDocs!=='undefined'&&vencDocs[i]&&vencDocs[i].length)?` <span class="pill blue" title="Documentos cargados">📄 ${vencDocs[i].length}</span>`:''}<div class="meta">${x.site}</div></td><td>${x.provider}</td><td>${vencDateCell(i,x,'issued')}</td><td>${vencDateCell(i,x,'due')}</td><td><button type="button" class="pill blue cel-edit venc-freq" onclick="cycleVencFreq(${i})" title="Clic para cambiar: Mensual → Trimestral → Semestral → Anual → No aplica">${x.frequency==='N/A'?'No aplica':x.frequency}</button></td><td>${vencControlCell(i,x)}</td><td><span class="pill ${pillForState(alert)}">${alert}</span></td></tr>`}).join('')}
+function openVencDocs(i){if(typeof window.celOpenVencDocs==='function')return window.celOpenVencDocs(i,vencItem(i));alert('No se pudo abrir la documentación.')}
+// v39: documentación de respaldo (PDF) en la nube, por sede. Lista en celVencDocsV1 (queda en Auditoría).
+const vencDocsKey='celVencDocsV1';
+let vencDocs={};try{vencDocs=JSON.parse(localStorage.getItem(vencDocsKey)||'{}')||{}}catch(e){vencDocs={}}
+function saveVencDocs(){try{localStorage.setItem(vencDocsKey,JSON.stringify(vencDocs))}catch(e){}}
+window.celOpenVencDocs=function(i,x){
+ const C=window.CEL||{};
+ let bd=document.getElementById('celDocsBackdrop');
+ if(!bd){bd=document.createElement('div');bd.id='celDocsBackdrop';bd.className='cel-note-backdrop';document.body.appendChild(bd);bd.addEventListener('click',e=>{if(e.target===bd)bd.classList.remove('open')})}
+ const list=(vencDocs[i]||[]).slice().sort((a,b)=>String(b.at).localeCompare(String(a.at)));
+ const fmt=d=>{try{return new Date(d).toLocaleString('es-AR',{dateStyle:'short',timeStyle:'short'})}catch(e){return d}};
+ const rows=list.length?list.map(d=>`<div class="doc-row"><div><b>📄 ${window.celEsc(d.name)}</b><div class="meta">${fmt(d.at)}${d.by?' · '+window.celEsc(d.by):''} · ${(d.size/1048576).toFixed(1)} MB</div></div><div class="doc-actions"><button type="button" class="btn" data-doc-open="${window.celEsc(d.path)}">Ver</button><button type="button" class="btn cel-edit" data-doc-del="${window.celEsc(d.path)}" title="Borrar documento">🗑</button></div></div>`).join(''):'<div class="meta" style="padding:10px 0">Todavía no hay documentos cargados.</div>';
+ const ready=!!(C.sede&&C.sede.id&&C.uploadFile);
+ bd.innerHTML=`<div class="cel-note-modal" role="dialog" aria-modal="true" aria-labelledby="celDocsTitle" style="max-width:600px"><h3 id="celDocsTitle">Documentación · ${window.celEsc(x.doc)}</h3><div class="meta" style="margin-bottom:10px">${window.celEsc(x.provider||'')}${x.due?' · Vence '+window.celEsc(x.due):''}</div><div id="celDocsList">${rows}</div>
+  <div class="doc-upload"><label class="btn primary cel-edit" for="celDocsFile" style="cursor:pointer">＋ Adjuntar PDF</label><input type="file" id="celDocsFile" class="cel-edit" accept="application/pdf" hidden><span class="meta" id="celDocsMsg">${ready?'Solo PDF, hasta 20 MB.':'Disponible al iniciar sesión en la app.'}</span></div>
+  <div class="cel-note-actions"><button type="button" class="btn" id="celDocsClose">Cerrar</button></div></div>`;
+ bd.classList.add('open');
+ const msg=t=>{const m=document.getElementById('celDocsMsg');if(m)m.textContent=t};
+ document.getElementById('celDocsClose').onclick=()=>bd.classList.remove('open');
+ bd.querySelectorAll('[data-doc-open]').forEach(b=>b.onclick=()=>{
+  if(!ready)return msg('Disponible al iniciar sesión en la app.');
+  const w=window.open('about:blank','_blank');msg('Abriendo…');
+  C.fileUrl('documentos',b.dataset.docOpen,600).then(u=>{if(w)w.location=u;else location.href=u;msg('Solo PDF, hasta 20 MB.')}).catch(e=>{if(w)w.close();msg('No se pudo abrir el documento ('+e.message+').')});
+ });
+ bd.querySelectorAll('[data-doc-del]').forEach(b=>b.onclick=()=>{
+  if(!ready)return;const path=b.dataset.docDel,d=(vencDocs[i]||[]).find(z=>z.path===path);
+  if(!confirm('¿Borrar «'+(d?d.name:'documento')+'»? No se puede deshacer.'))return;
+  msg('Borrando…');
+  C.deleteFile('documentos',path).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);vencDocs[i]=(vencDocs[i]||[]).filter(z=>z.path!==path);if(!vencDocs[i].length)delete vencDocs[i];saveVencDocs();renderVencimientos();window.celOpenVencDocs(i,x)}).catch(e=>msg('No se pudo borrar ('+e.message+').'));
+ });
+ const inp=document.getElementById('celDocsFile');
+ inp.onchange=()=>{
+  const f=inp.files&&inp.files[0];inp.value='';if(!f)return;
+  if(!ready)return msg('Disponible al iniciar sesión en la app.');
+  if(f.type!=='application/pdf'&&!/\.pdf$/i.test(f.name))return msg('El archivo tiene que ser PDF.');
+  if(f.size>20*1048576)return msg('El PDF supera los 20 MB.');
+  const safe=f.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z0-9._-]+/g,'_').slice(-80);
+  const path=C.sede.id+'/vencimientos/'+i+'/'+Date.now()+'_'+safe;
+  msg('Subiendo '+f.name+'…');
+  const file=f.type?f:new File([f],f.name,{type:'application/pdf'});
+  C.uploadFile('documentos',path,file).then(r=>{if(!r.ok)return r.text().then(t=>{throw new Error('HTTP '+r.status+(t?' '+t.slice(0,120):''))});
+   (vencDocs[i]=vencDocs[i]||[]).push({path,name:f.name,size:f.size,at:new Date().toISOString(),by:C.email||''});saveVencDocs();renderVencimientos();window.celOpenVencDocs(i,x);
+  }).catch(e=>msg('No se pudo subir ('+e.message+').'));
+ };
+};
 function saveVisitDate(i,value){visitDates[i]=value;localStorage.setItem('celVisitDates',JSON.stringify(visitDates))}
 function currentExtMonth(){return document.getElementById('extMonth')?.value||'2026-11'}
 function monthVerified(){return monthlyVerifiedByMonth[currentExtMonth()]||(monthlyVerifiedByMonth[currentExtMonth()]={})}
@@ -1882,6 +1938,9 @@ th.sched-current{color:#176da5}
 .venc-start{display:block;margin-top:5px;font-size:11px;border:1px solid #d5e0e8;border-radius:6px;padding:2px 4px;color:#60788b}
 .venc-doc-link{background:none;border:0;padding:0;cursor:pointer;text-align:left;color:#17364d;text-decoration:underline dotted #9eb6c8}
 .venc-doc-link:hover{color:#1976d2}
+.doc-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #eef2f5}
+.doc-actions{display:flex;gap:6px}
+.doc-upload{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px}
 </style>
 <script id="activity-register-sync">
 (function(){
