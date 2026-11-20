@@ -79,7 +79,7 @@
   if(!CEL.canEdit){
     document.body.classList.add("cel-ro");
     var W='#preventivePdfUpload,#readPreventivePdf,#preventiveExtractText,#savePreventivePdf,#batchConfirm,#batchApprove,'+
-      '#correctiveSheet,#correctivePdf,#jobCode,#jobDescription,#jobDate,#jobSector,#jobPinCount,#createCorrective,'+
+      '#jobPhoto,#jobNotes,#jobCode,#jobDescription,#jobDate,#jobSector,#jobPinCount,#createCorrective,'+
       '#futurePhoto,#futureTitle,#futurePriority,#futureDescription,#futureSector,#createFuture,#celUploadPdf,#celReadPdf,'+
       '#closeExtMonth,#customRoutineForm input,#customRoutineForm select,#customRoutineForm button,#confirmCustomPin,#removeCustomPin,'+
       '[onclick^="toggleVerify"],[onchange^="saveVisitDate"],.frequency-edit,.schedule-toggle,[data-confirm-pin],[data-generate-pin],[data-open-pin],'+

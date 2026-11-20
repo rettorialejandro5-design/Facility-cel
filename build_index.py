@@ -50,7 +50,7 @@ TEXTS = [
     ("El prototipo guarda los documentos en este navegador. La versión multiusuario requerirá almacenamiento central.",
      "Los informes PDF se guardan solo en este navegador, separados por usuario y sede. Todavía no se suben a la nube."),
     ("Prototipo de interfaz: la selección de archivos se muestra localmente. La lectura automática de Excel/PDF, validación de remitos y guardado permanente se conectarán en la etapa de integración.",
-     "La planilla y el PDF que selecciones solo se muestran en esta pantalla: todavía no se leen automáticamente ni se guardan. Las tareas y los pines que crees sí se guardan en la nube para la sede activa."),
+     "La fotografía (optimizada), los datos y los pines se guardan en la nube para la sede activa. También podés agregar o cambiar la foto después, haciendo clic en el pin del plano."),
     ("La fotografía y los datos se muestran en esta demostración local. El almacenamiento, historial y seguimiento se habilitarán al conectar la base de datos.",
      "La fotografía (optimizada) y los datos se guardan en la nube para la sede activa. Cada cambio queda registrado en la auditoría con usuario, fecha y hora."),
     ("El botón registra la verificación mensual en esta demostración del navegador. En la versión conectada quedará guardado con usuario, fecha y hora.",
