@@ -65,9 +65,14 @@ por SMTP propio (Resend) desde `no-responder@facilitycel.com.ar`.
   - Modelo: Excel del que se saca el PDF del remito. Referencia: PDF de septiembre y octubre.
   - Los archivos están en la carpeta de facturación del OneDrive del dueño (parte también en Google Drive).
   - Auditar cantidades contra los meses anteriores, armar el remito en el modelo y avisar diferencias antes del PDF.
+  - **Hecho (2026-11-20):** remitos 0002-00044098 a 44102 (CEL, PS, RBA, AEP, EZE), fecha 20/11/2026, total $ 8.138.058,80.
+    Excel y PDF en Google Drive: `Facturación/Remitos insumos refacturables NOVIEMBRE 2026`. El dueño confirmó cantidades
+    (PS sin vasos este mes; insecticidas OK). Cada remito sale del modelo `00. ULTIMO MODELO PARA REMITO.xlsx` con las
+    cantidades de las filas "S" del mes en la solapa del abono; los totales deben cerrar con el TOTAL VENTA del abono.
+  - Pendiente del dueño: remito AEP de octubre (4096) no estaba en la carpeta.
 - Quedan otros 2 puntos de refacturación; el dueño los pasa después.
-- **Importante:** las sesiones en la nube no ven OneDrive ni el navegador. Para esta tarea, trabajar desde PowerShell
-  en la PC (`cd` a la carpeta del proyecto, `git pull`, `claude`).
+- Acceso a archivos: desde la nube, solo lo que esté en Google Drive (carpeta `Facturación`). OneDrive y el navegador
+  solo desde una sesión en la PC (PowerShell: `cd` a la carpeta del proyecto, `git pull`, `claude`).
 
 ## Estado anterior (v39, 2026-11-17)
 - Hecho y publicado:
