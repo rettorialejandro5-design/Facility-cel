@@ -4,7 +4,7 @@
 > está en el OneDrive del dueño: `Facility CEL\v2\NOTAS_DESARROLLO.md`.
 > Para retomar con Claude: "Leé NOTAS_DESARROLLO.md y seguimos". Al terminar, actualizar este archivo.
 >
-> Última actualización: 2026-11-17.
+> Última actualización: 2026-11-20.
 
 ## Qué es
 App de gestión de mantenimiento (Facility CEL). Publicada en https://facilitycel.com.ar con Cloudflare Pages,
@@ -50,7 +50,26 @@ por SMTP propio (Resend) desde `no-responder@facilitycel.com.ar`.
 - En la app, solo afirmaciones de seguridad que sean ciertas hoy.
 - Informar con evidencia; no afirmar lo que no se verificó.
 
-## Estado (v39, 2026-11-17)
+## Estado (v41, commit fa01bd6, 2026-11-20)
+- v41: en Correctivos realizados se quitaron la importación de planilla y el respaldo PDF; foto optimizada y observaciones
+  al crear la tarea (compartidas por todas sus ubicaciones); la ficha del pin permite subir, cambiar o quitar la foto;
+  la foto repetida entre ubicaciones se guarda una sola vez.
+- v40: botón "Correctivo realizado" en futuros y en la ficha del pin (pasa a realizados con fecha, conserva foto,
+  descripción y ubicación); clic en pin fijo abre ficha grande con foto; Vencimientos separado en documentales y
+  control de visitas de proveedores por mes (un clic confirma), frecuencia ajustable con mes de inicio; se suma
+  Control de baños (Prohigiene).
+
+## Tarea en curso: refacturación (fuera de la app)
+- Punto 1: generar el remito del mes vigente (noviembre 2026) de **insumos de limpieza refacturables**.
+  - Fuente: archivo de abono, solapa "insumos de limpieza refacturable" (cantidades a refacturar).
+  - Modelo: Excel del que se saca el PDF del remito. Referencia: PDF de septiembre y octubre.
+  - Los archivos están en la carpeta de facturación del OneDrive del dueño (parte también en Google Drive).
+  - Auditar cantidades contra los meses anteriores, armar el remito en el modelo y avisar diferencias antes del PDF.
+- Quedan otros 2 puntos de refacturación; el dueño los pasa después.
+- **Importante:** las sesiones en la nube no ven OneDrive ni el navegador. Para esta tarea, trabajar desde PowerShell
+  en la PC (`cd` a la carpeta del proyecto, `git pull`, `claude`).
+
+## Estado anterior (v39, 2026-11-17)
 - Hecho y publicado:
   - calendario hasta diciembre 2027 con el plan 2027;
   - vista de 5 meses o del año completo;
